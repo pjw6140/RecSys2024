@@ -18,6 +18,17 @@ def gen_collaborative_data(behaviors_path, history_path, artifacts_path, output_
     for i in tqdm(range(len(behaviors))):
         row = behaviors.iloc[i]
         user_id = str(row['user_id'])
+
+        article_ids_clicked = row['article_ids_clicked']
+        if user_id not in collaboration:
+            collaboration[user_id] = {}
+        for article_id in article_ids_clicked:
+            article_id = str(article_id)
+            if int(article_id) in artifacts:
+                collaboration[user_id][article_id] = 1
+            else:
+                print(f"warning: {article_id} is not in artifacts!")
+
         article_ids_inview = row['article_ids_inview']
         if user_id not in collaboration:
             collaboration[user_id] = {}

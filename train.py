@@ -20,10 +20,10 @@ if not os.path.isdir("checkpoints"):
 #item count:  10075
 num_users = 15143
 num_items = 10075
-gmf_emb_dim = 64
-mlp_user_emb_dim = 64
+gmf_emb_dim = 16
+mlp_user_emb_dim = 16
 mlp_item_emb_dim = 768
-mlp_layer_dims = [512,512,64]
+mlp_layer_dims = [32,16,8]
 
 batch_size = 32
 learning_rate = 1e-4
@@ -35,11 +35,12 @@ dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 validate_dataset = RecSysDataset("small_validation.json", "small_id_mapping.pickle", "data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")
 validate_dataloader = DataLoader(validate_dataset, batch_size=128)
 
-model = NeMF(num_users, num_items, gmf_emb_dim, mlp_user_emb_dim, mlp_item_emb_dim, mlp_layer_dims)
-#model = torch.load("checkpoints/cp322.pt")
+#model = NeMF(num_users, num_items, gmf_emb_dim, mlp_user_emb_dim, mlp_item_emb_dim, mlp_layer_dims)
+model = torch.load("checkpoints/latest.pt")
 model = model.to("cuda")
 
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=5e-5)
+#optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 print("start training", flush=True)
 
@@ -67,7 +68,7 @@ for ei in range(epoch):
     print(f"[{datetime.now()}] epoch {ei} Loss: {avg_loss} training accuracy: {training_accuracy} validate accuracy: {accuracy}", flush=True)
     logging.info(f"epoch {ei} Loss: {avg_loss} training accuracy: {training_accuracy} validate accuracy: {accuracy}")
 
-    if accuracy < max_validation_accuracy:
+    if accuracy > max_validation_accuracy:
         max_validation_accuracy = accuracy
         torch.save(model, f'checkpoints/best.pt')
 
