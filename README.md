@@ -55,6 +55,6 @@ test history (train一样)
 ['user_id', 'impression_time_fixed', 'scroll_percentage_fixed', 'article_id_fixed', 'read_time_fixed']
 
 需要解决冷启动问题：训练集里面的用户、文章，在验证集、测试集可能没有
--- 增加近邻匹配，给未训练的人或文章找最近的训练过的对应，用最近的embedding代替预测
--- 用户的近邻匹配用人工特征
--- 文章的近邻匹配用bert embedding
+- 增加近邻匹配，给未训练的人或文章找最近的训练过的对应，用最近的embedding代替预测
+- 用户的近邻匹配用人工特征
+- 文章的近邻匹配用bert embedding
