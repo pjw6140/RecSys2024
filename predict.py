@@ -7,7 +7,12 @@ import pickle
 from artifact import Artifact
 from dataset import RecSysDataset
 
-output = open("data/predict.txt", 'w')
+def get_ranking(float_array):
+    sorted_array = sorted(float_array, reverse=True)
+    int_array = [sorted_array.index(num) + 1 for num in float_array]
+    return int_array
+
+output = open("data/predictions.txt", 'w')
 
 with open("test.pickle", "rb") as f:
     test_feature_data = pickle.load(f)
@@ -50,16 +55,10 @@ for i in tqdm(range(len(behaviors))):
 
     with torch.no_grad():
         predict_score = model(input_user_ids, input_item_ids, input_bert_embs).numpy()
-    id_score = []
-    for i in range(len(predict_score)):
-        id_score.append((i+1, predict_score[i]))
-    id_score = sorted(id_score, key=lambda x : x[1], reverse=True)
 
-    sort_result = []
-    for i, score in id_score:
-        sort_result.append(i)
+    rank = get_ranking(predict_score)
     
-    line = f"{impression_id} {str(sort_result).replace(' ','')}"
+    line = f"{impression_id} {str(rank).replace(' ','')}"
     output.write(line + "\n")
 
 output.close()
