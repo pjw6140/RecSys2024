@@ -35,12 +35,12 @@ dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 validate_dataset = RecSysDataset("small_validation.json", "small_id_mapping.pickle", "data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")
 validate_dataloader = DataLoader(validate_dataset, batch_size=128)
 
-#model = NeMF(num_users, num_items, gmf_emb_dim, mlp_user_emb_dim, mlp_item_emb_dim, mlp_layer_dims)
-model = torch.load("checkpoints/latest.pt")
+model = NeMF(num_users, num_items, gmf_emb_dim, mlp_user_emb_dim, mlp_item_emb_dim, mlp_layer_dims)
+#model = torch.load("checkpoints/latest.pt")
 model = model.to("cuda")
 
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=5e-5)
-#optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+#optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 print("start training", flush=True)
 

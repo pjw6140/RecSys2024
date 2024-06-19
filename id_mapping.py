@@ -1,61 +1,93 @@
-import json
+import torch
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+import pickle
 
-class IDMapping:
-    def __init__(self, file_paths):
-        self.users = []
-        self.user_mapping = {}
-        self.items = []
-        self.item_mapping = {}
-        
-        for file_path in file_paths:
-            with open(file_path, "r") as f:
-                data = json.loads(f.read())
-            
-            user_current_index = 0
-            item_current_index = 0
-            for user_id in data.keys():
-                user_id_int = int(user_id)
-                if user_id_int not in self.user_mapping:
-                    self.users.append(user_id_int)
-                    self.user_mapping[user_id_int] = user_current_index
-                    user_current_index += 1
+from artifact import Artifact
+from dataset import RecSysDataset
 
-                interacts = data[user_id]
-                for item in interacts.keys():
-                    item_id = int(item)
-                    if item_id not in self.item_mapping:
-                        self.items.append(item_id)
-                        self.item_mapping[item_id] = item_current_index
-                        item_current_index += 1
+with open("test.pickle", "rb") as f:
+    test_feature_data = pickle.load(f)
 
-        print("user count: ", len(self.users))
-        print("item count: ", len(self.items))
+model = torch.load("checkpoints/latest.pt").to("cpu")
+model.eval()
 
-    def save(self, file_path):
-        import pickle
-        with open(file_path, "wb") as f:
-            pickle.dump(self, f)
+artifact = Artifact("data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")
+train_data = RecSysDataset("small_train.pickle", artifact)
 
-    @staticmethod
-    def load(file_path):
-        import pickle
-        with open(file_path, "rb") as f:
-            mapping = pickle.load(f)
-        return mapping
+user_id_mapping = {}
+item_id_mapping = {}
 
-    def try_get(self, id, category):
-        if category == "user":
-            if id in self.user_mapping:
-                return self.user_mapping[id]
-        elif category == "item":
-            if id in self.item_mapping:
-                return self.item_mapping[id]
-        return None
+unknown_users = set()
+unknown_items = set()
 
-if __name__ == '__main__':
-    #mapping = IDMapping(["small_train.json", "small_validation.json"])
-    mapping = IDMapping(["small_train.json"])
-    mapping.save("small_id_mapping.pickle")
+behaviors = pd.read_parquet("data/ebnerd_testset/ebnerd_testset/test/behaviors.parquet")
+for i in tqdm(range(len(behaviors)), desc="read behaviors"):
+    row = behaviors.iloc[i]
+    user_id = row['user_id']
 
-    #user count:  15143
-    #item count:  10075
+    if user_id in train_data.user_mapping:
+        user_short_id = train_data.user_mapping[user_id]
+        user_id_mapping[user_id] = user_short_id
+    else:
+        unknown_users.add(user_id)
+    
+    article_ids_inview = row['article_ids_inview']
+    for article_id in article_ids_inview:
+        if article_id in train_data.item_mapping:
+            item_short_id = train_data.item_mapping[article_id]
+            item_id_mapping[article_id] = item_short_id
+        else:
+            unknown_items.add(article_id)
+
+unknown_users = list(unknown_users)
+unknown_items = list(unknown_items)
+
+print("unknown users: ", len(unknown_users))
+print("unknown items: ", len(unknown_items))
+
+print("users: ", len(user_id_mapping))
+print("items: ", len(item_id_mapping))
+
+batch_size = 128
+
+# nn search user
+num_batch = len(unknown_users) // batch_size
+if len(unknown_users) % num_batch != 0:
+    num_batch += 1
+for bi in tqdm(range(num_batch), desc="nn search user"):
+    batch_unknown_users = unknown_users[bi * batch_size : (bi + 1) * batch_size]
+    features = []
+    for user_id in batch_unknown_users:
+        features.append(test_feature_data[user_id])
+    features = np.vstack(features)
+    short_ids = train_data.nn_search_user(features)
+    for i in range(len(batch_unknown_users)):
+        user_id = batch_unknown_users[i]
+        short_id = short_ids[i]
+        user_id_mapping[user_id] = short_id
+
+# nn search item
+num_batch = len(unknown_items) // batch_size
+if len(unknown_items) % num_batch != 0:
+    num_batch += 1
+for bi in tqdm(range(num_batch), desc="nn search item"):
+    batch_unknown_items = unknown_items[bi * batch_size : (bi + 1) * batch_size]
+    features = []
+    for article_id in batch_unknown_items:
+        features.append(artifact[article_id])
+    features = np.vstack(features)
+    short_ids = train_data.nn_search_item(features)
+    for i in range(len(batch_unknown_items)):
+        user_id = batch_unknown_items[i]
+        short_id = short_ids[i]
+        item_id_mapping[user_id] = short_id
+
+print("users: ", len(user_id_mapping))
+print("items: ", len(item_id_mapping))
+
+with open("user_id_mapping.pickle", "wb") as f:
+    pickle.dump(user_id_mapping, f)
+with open("item_id_mapping.pickle", "wb") as f:
+    pickle.dump(item_id_mapping, f)

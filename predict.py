@@ -1,33 +1,65 @@
 import torch
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import pickle
 
-model = torch.load("checkpointS/cp38.pt").to("cpu")
+from artifact import Artifact
+from dataset import RecSysDataset
+
+output = open("data/predict.txt", 'w')
+
+with open("test.pickle", "rb") as f:
+    test_feature_data = pickle.load(f)
+
+with open("user_id_mapping.pickle", "rb") as f:
+    user_id_mapping = pickle.load(f)
+
+with open("item_id_mapping.pickle", "rb") as f:
+    item_id_mapping = pickle.load(f)
+
+model = torch.load("checkpoints/latest.pt").to("cpu")
 model.eval()
 
-output = open("data/predict.csv", 'w')
-#output.write('user_id,click_article_id,ratings\n')
-output.write('ID,ratings\n')
+artifact = Artifact("data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")
 
-test_data = pd.read_csv("data/Tianchi_Test_uid_iid.csv", header=0)
-num_rows = len(test_data)
-for index in tqdm(range(num_rows)):
-    row = test_data.iloc[index]
-    user_id = row["user_id"]
-    item_id = row["click_article_id"]
+behaviors = pd.read_parquet("data/ebnerd_testset/ebnerd_testset/test/behaviors.parquet")
+for i in tqdm(range(len(behaviors))):
+    row = behaviors.iloc[i]
+    impression_id = row['impression_id']
+    user_id = row['user_id']
 
-    user = torch.Tensor([user_id]).int()
-    item = torch.Tensor([item_id]).int()
+    user_short_id = user_id_mapping[user_id]
+        
+    input_user_ids = []
+    input_item_ids = []
+    input_bert_embs = []
+
+    article_ids_inview = row['article_ids_inview']
+    for article_id in article_ids_inview:
+        input_user_ids.append(user_short_id)
+        bert_emb = artifact[article_id]
+        input_bert_embs.append(bert_emb)
+
+        item_short_id = item_id_mapping[article_id]
+        input_item_ids.append(item_short_id)
+
+    input_user_ids = torch.Tensor(input_user_ids).int()
+    input_item_ids = torch.Tensor(input_item_ids).int()
+    input_bert_embs = torch.from_numpy(np.vstack(input_bert_embs)).float()
 
     with torch.no_grad():
-        score = model(user, item).item()
-    
-    if score >= 0.5:
-        score = 1
-    else:
-        score = 0
+        predict_score = model(input_user_ids, input_item_ids, input_bert_embs).numpy()
+    id_score = []
+    for i in range(len(predict_score)):
+        id_score.append((i+1, predict_score[i]))
+    id_score = sorted(id_score, key=lambda x : x[1], reverse=True)
 
-    #output.write(f"{int(user_id)},{int(item_id)},{score}\n")
-    output.write(f"{index},{score}\n")
+    sort_result = []
+    for i, score in id_score:
+        sort_result.append(i)
+    
+    line = f"{impression_id} {str(sort_result).replace(' ','')}"
+    output.write(line + "\n")
 
 output.close()
