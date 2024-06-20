@@ -8,7 +8,7 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 class RecSysDataset(Dataset):
-    def __init__(self, pickle_path:str, artifact:Artifact):
+    def __init__(self, pickle_path:str, artifact:Artifact, origin_pickle_path:str=None):
         super().__init__()
         with open(pickle_path, "rb") as f:
             data = pickle.load(f)
@@ -20,11 +20,20 @@ class RecSysDataset(Dataset):
         self.collaboration = data["collaboration"]
         self.artifact = artifact
 
+        if origin_pickle_path != None:
+            with open(origin_pickle_path, "rb") as f:
+                origin_data = pickle.load(f)
+                #self.users = origin_data["users"]
+                self.user_mapping = origin_data["user_mapping"]
+                #self.items = origin_data["items"]
+                self.item_mapping = origin_data["item_mapping"]
+
         # build training data
         self.data = []
         for user in self.collaboration.keys():
             for item, score in self.collaboration[user]["interactions"].items():
-                self.data.append((int(user), int(item), float(score)))
+                if int(user) in self.user_mapping and int(item) in self.item_mapping:
+                    self.data.append((int(user), int(item), float(score)))
 
         # build user faiss index
         user_features = []

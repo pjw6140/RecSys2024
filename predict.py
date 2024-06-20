@@ -23,7 +23,8 @@ with open("user_id_mapping.pickle", "rb") as f:
 with open("item_id_mapping.pickle", "rb") as f:
     item_id_mapping = pickle.load(f)
 
-model = torch.load("checkpoints/latest.pt").to("cpu")
+#model = torch.load("checkpoints/latest.pt").to("cpu")
+model = torch.load("checkpoints/best.pt").to("cpu")
 model.eval()
 
 artifact = Artifact("data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")

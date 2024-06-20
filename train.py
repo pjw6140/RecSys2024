@@ -1,11 +1,12 @@
 from NeMF import NeMF
+from artifact import Artifact
 from dataset import RecSysDataset
-from id_mapping import IDMapping
 from torch.utils.data import DataLoader
 import torch
 from validation import validate
 from datetime import datetime
 import logging
+from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, # 日志的级别
                     filename='training.log', 
@@ -26,17 +27,20 @@ mlp_item_emb_dim = 768
 mlp_layer_dims = [32,16,8]
 
 batch_size = 32
-learning_rate = 1e-4
+learning_rate = 1e-7
 
-dataset = RecSysDataset("small_train.json", "small_id_mapping.pickle", "data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")
+artifact = Artifact("data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")
 
+#dataset = RecSysDataset("small_train.pickle", artifact)
+dataset = RecSysDataset("small_validation.pickle", artifact, "small_train.pickle")
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-validate_dataset = RecSysDataset("small_validation.json", "small_id_mapping.pickle", "data/FacebookAI_xlm_roberta_base/FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet")
+#validate_dataset = RecSysDataset("small_validation.pickle", artifact, , "small_train.pickle")
+validate_dataset = RecSysDataset("small_train.pickle", artifact)
 validate_dataloader = DataLoader(validate_dataset, batch_size=128)
 
-model = NeMF(num_users, num_items, gmf_emb_dim, mlp_user_emb_dim, mlp_item_emb_dim, mlp_layer_dims)
-#model = torch.load("checkpoints/latest.pt")
+#model = NeMF(num_users, num_items, gmf_emb_dim, mlp_user_emb_dim, mlp_item_emb_dim, mlp_layer_dims)
+model = torch.load("checkpoints/latest_0619bak.pt")
 model = model.to("cuda")
 
 #optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
@@ -46,6 +50,10 @@ print("start training", flush=True)
 
 max_validation_accuracy = -1
 epoch = 5000
+
+accuracy = validate(validate_dataloader, model, device="cuda")
+print("origin_validation_accuracy:", accuracy, flush=True)
+
 for ei in range(epoch):
     avg_loss = 0.0
     for batch, (users, items, labels, item_emb) in enumerate(dataloader):
@@ -72,7 +80,7 @@ for ei in range(epoch):
         max_validation_accuracy = accuracy
         torch.save(model, f'checkpoints/best.pt')
 
-    if ei % 50 == 0:
+    if ei % 50 == 0 or True:
         torch.save(model, f'checkpoints/cp{ei}.pt')
 
     torch.save(model, f'checkpoints/latest.pt')
